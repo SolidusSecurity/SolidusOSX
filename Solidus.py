@@ -1,35 +1,13 @@
+import SolidusErrorLog
+import SolidusConfigFile
 import SolidusXMLLog
-
-#!TRemove - When you shift the examples to the right files
-import datetime
+import sys
+import uuid
 import shutil
 import os
-import hashlib
-import urllib, urllib2
-from xml.dom import minidom
-import base64
-import socket
-import uuid
-import platform
-import sys
 
-
-def getFileMD5(strFileIn):
-    try:
-        md5 = hashlib.md5()
-        with open(strFileIn, "rb") as inFile:
-                #!TFinish - Add Stackoverflow comment referencing this as optimal size
-                for bytesCurrent in iter(lambda: inFile.read(65536), b""):
-                        md5.update(bytesCurrent)
-
-        return md5.hexdigest()
-
-    except:
-        #!TFinish - Add Error Handling and remove raise
-        raise
-        pass
-                        
-
+#All Exceptions Pass Through
+#!TFinish 1.0 - Add More Robust Function by Function Error Handling
 class OSXLocEntry:
 
     strEntryName = ""
@@ -52,7 +30,8 @@ class OSXLocEntry:
     def readFromFile(self, inFileIn):
         self.strEntryName = inFileIn.readline().rstrip("\n")
 
-
+#All Exceptions Pass Through
+#!TFinish 1.0 - Add More Robust Function by Function Error Handling
 class OSXLocFileOrDirectoryEntry:
 
     strEntryName = ""
@@ -90,8 +69,11 @@ class OSXLocFileOrDirectoryEntry:
     def readFromFile(self, inFileIn):
         self.strEntryName = inFileIn.readline().rstrip("\n")
         self.nFileOrDirectory = int(inFileIn.readline().rstrip("\n"))
-                
-                  
+
+class OSXDirectoryLocClassError(Exception):
+    pass
+
+#!TFinish 1.0 - Add More Robust Function by Function Error Handling
 class OSXDirectoryLocClass:
 
     strDirectory = ""
@@ -127,19 +109,17 @@ class OSXDirectoryLocClass:
             outFile.close()
 
             shutil.move(strTempFile, self.strRGFFile)
-            
-            pass
         
-        except:
-            #!TFinish - Add Error Handling
-            raise
-            pass
+        except Exception as err:
+            SolidusErrorLog.logError(str(err), "OSXDirectoryLocClass::writeToFile")
+            raise OSXDirectoryLocClassError(str(err))
     
     def readFromFile(self):
         try:
+            #This is an unexpected condition that indicates a code mistake error
             if (len(self.dictOSXLocEntries) != 0):
-                pass
-                #!TFinish Add error message and raise error
+                #We keep the old entries to be overly inclusive rather than risk omitting something that needs to be there
+                SolidusErrorLog.logCodeMistakeError("Dictionary Not Empty", "OSXDirectoryLocClass::readFromFile")
             
             inFile = open(self.strRGFFile, "r")
             nEntryCount = int(inFile.readline())
@@ -150,11 +130,9 @@ class OSXDirectoryLocClass:
                     
             inFile.close()
 
-
-        except:
-            #!TFinish - Add Error Handling and remove raise
-            raise
-            pass
+        except Exception as err:
+            SolidusErrorLog.logError(str(err), "OSXDirectoryLocClass::readFromFile")
+            raise OSXDirectoryLocClassError(str(err))
                     
     def addOSXLocEntry(self, osxLocEntryIn):
         self.dictOSXLocEntries[osxLocEntryIn.getEntryDictKey()] = osxLocEntryIn
@@ -175,13 +153,6 @@ class OSXDirectoryLocClass:
         self.writeToFile()
             
     def evaluate(self):
-##        for strCurrentDirectory, lstSubDirectories, lstFiles in os.walk(strDirectory):
-##                for strSubDirectory in lstSubDirectories:
-##                        print ("Sub:", strSubDirectory)
-##                        
-##                for strFile in lstFiles:
-##                        print (strFile)
-
         for strFile in os.listdir(self.strDirectory):
 
             if (os.path.isfile(strFile)):
@@ -192,8 +163,10 @@ class OSXDirectoryLocClass:
                     #We always use the 64Bit Loc GUID
                     SolidusXMLLog.writeDirectoryLocPermitDirectoryEvent(self.str64BitLocGuid, strFile)
 
-                
+class LocationsManagerError(Exception):
+    pass
 
+#!TFinish 1.0 - Add More Robust Function by Function Error Handling
 class LocationsManager():
 
     lstLocations = []
@@ -203,7 +176,6 @@ class LocationsManager():
 
     def __init__(self, bInitForInstallIn):
         self.readInLocationsFile(bInitForInstallIn)
-        #!TFinish - Add Error Handling
 
     def readInLocationsFile(self, bInitForInstallIn):
         try:
@@ -227,207 +199,159 @@ class LocationsManager():
                 if (strCurrentLoc.startswith("#")):
                     continue
 
-                
                 lstFields = strCurrentLoc.split(LOC_FILE_DELIMITER)
-
                 self.setupDirectoryLocation(lstFields, bInitForInstallIn)
-                
-        #!TFinish - Add Error Handling
-        except:
-                raise
+
+            return
+        
+        #Function exception raised below individual handlers
+        except LocationsManagerError:
+            #Already Logged
+            pass
+
+        except Exception as err:
+            SolidusErrorLog.logError(str(err), "LocationsManager::readInLocationsFile")
+            
+        raise LocationsManagerError("Read In Locations File Failed")
 
     def setupDirectoryLocation(self, lstFieldsIn, bInitForInstallIn):
-        MODE_COUNT = 4
-        DIRECTORY_FIELD_COUNT = MODE_COUNT + 13
 
-        COMPATIBILITY_FIELD = 1
-        FIRST_MODE_FIELD = 2
-        FIRST_FIELD_AFTER_MODES = FIRST_MODE_FIELD + MODE_COUNT
+        try:
+            MODE_COUNT = 4
+            DIRECTORY_FIELD_COUNT = MODE_COUNT + 13
 
-        LOCATION_GUID_32BIT_FIELD = 0 + FIRST_FIELD_AFTER_MODES
-        LOCATION_GUID_64BIT_FIELD = 1 + FIRST_FIELD_AFTER_MODES
-        LOCATION_AUTOEXEC_FILE_INFO_TYPE_FIELD = 2 + FIRST_FIELD_AFTER_MODES
-        LOCATION_EXECUTION_TYPE_FIELD = 3 + FIRST_FIELD_AFTER_MODES
-        LOCATION_IS_MALWARE_PERCENT_FIELD = 4 + FIRST_FIELD_AFTER_MODES
-        LOCATION_MALWARE_USES_LOCATION_PERCENT_FIELD = 5 + FIRST_FIELD_AFTER_MODES
-        DIRECTORY_PATH_FIELD = 6 + FIRST_FIELD_AFTER_MODES
-        RGF_COUNT_FIELD = 7 + FIRST_FIELD_AFTER_MODES
-        WHITELIST_COUNT_FIELD = 8 + FIRST_FIELD_AFTER_MODES
-        BLACKLIST_COUNT_FIELD = 9 + FIRST_FIELD_AFTER_MODES
-        EXCEPTION_COUNT_FIELD = 10 + FIRST_FIELD_AFTER_MODES
+            COMPATIBILITY_FIELD = 1
+            FIRST_MODE_FIELD = 2
+            FIRST_FIELD_AFTER_MODES = FIRST_MODE_FIELD + MODE_COUNT
 
-        #Verify the right number of fields are in the entry
-        nRGFFilesCount = int(lstFieldsIn[RGF_COUNT_FIELD])
+            LOCATION_GUID_32BIT_FIELD = 0 + FIRST_FIELD_AFTER_MODES
+            LOCATION_GUID_64BIT_FIELD = 1 + FIRST_FIELD_AFTER_MODES
+            LOCATION_AUTOEXEC_FILE_INFO_TYPE_FIELD = 2 + FIRST_FIELD_AFTER_MODES
+            LOCATION_EXECUTION_TYPE_FIELD = 3 + FIRST_FIELD_AFTER_MODES
+            LOCATION_IS_MALWARE_PERCENT_FIELD = 4 + FIRST_FIELD_AFTER_MODES
+            LOCATION_MALWARE_USES_LOCATION_PERCENT_FIELD = 5 + FIRST_FIELD_AFTER_MODES
+            DIRECTORY_PATH_FIELD = 6 + FIRST_FIELD_AFTER_MODES
+            RGF_COUNT_FIELD = 7 + FIRST_FIELD_AFTER_MODES
+            WHITELIST_COUNT_FIELD = 8 + FIRST_FIELD_AFTER_MODES
+            BLACKLIST_COUNT_FIELD = 9 + FIRST_FIELD_AFTER_MODES
+            EXCEPTION_COUNT_FIELD = 10 + FIRST_FIELD_AFTER_MODES
 
-        nWhitelistCountFieldIndex = WHITELIST_COUNT_FIELD + nRGFFilesCount
-        nWhitelistCount = int(lstFieldsIn[nWhitelistCountFieldIndex])
+            #Verify the right number of fields are in the entry
+            nRGFFilesCount = int(lstFieldsIn[RGF_COUNT_FIELD])
 
-        nBlacklistCountFieldIndex = BLACKLIST_COUNT_FIELD + nRGFFilesCount + nWhitelistCount
-        nBlacklistCount = int(lstFieldsIn[nBlacklistCountFieldIndex])
+            nWhitelistCountFieldIndex = WHITELIST_COUNT_FIELD + nRGFFilesCount
+            nWhitelistCount = int(lstFieldsIn[nWhitelistCountFieldIndex])
 
-        nExceptionCountFieldIndex = EXCEPTION_COUNT_FIELD + nRGFFilesCount + nWhitelistCount + nBlacklistCount
-        nExceptionsCount = int(lstFieldsIn[nExceptionCountFieldIndex])
+            nBlacklistCountFieldIndex = BLACKLIST_COUNT_FIELD + nRGFFilesCount + nWhitelistCount
+            nBlacklistCount = int(lstFieldsIn[nBlacklistCountFieldIndex])
 
-        if (len(lstFieldsIn) != (DIRECTORY_FIELD_COUNT + nRGFFilesCount + nWhitelistCount + nBlacklistCount + nExceptionsCount)):
-            #!TFinish - Replace this with proper exception and logging
-            raise Exception ("Invalid Location Entry")
+            nExceptionCountFieldIndex = EXCEPTION_COUNT_FIELD + nRGFFilesCount + nWhitelistCount + nBlacklistCount
+            nExceptionsCount = int(lstFieldsIn[nExceptionCountFieldIndex])
 
-        str32BitLocGuid = lstFieldsIn[LOCATION_GUID_32BIT_FIELD]
-        str64BitLocGuid = lstFieldsIn[LOCATION_GUID_64BIT_FIELD]
+            if (len(lstFieldsIn) != (DIRECTORY_FIELD_COUNT + nRGFFilesCount + nWhitelistCount + nBlacklistCount + nExceptionsCount)):
+                SolidusErrorLog.logCodeMistakeError("Invalid Location Entry", "LocationsManager::setupDirectoryLocation")
+                raise LocationsManagerError("Invalid Location Entry")
 
-        strDirectory = lstFieldsIn[DIRECTORY_PATH_FIELD]
+            str32BitLocGuid = lstFieldsIn[LOCATION_GUID_32BIT_FIELD]
+            str64BitLocGuid = lstFieldsIn[LOCATION_GUID_64BIT_FIELD]
 
-        #We only support an RGF and Backup RGF
-        if (nRGFFilesCount != 2):
-            #!TFinish - Replace this with proper exception and logging
-            raise Exception ("Invalid RGF Count")
+            strDirectory = lstFieldsIn[DIRECTORY_PATH_FIELD]
 
-        
-        strRGFFile = lstFieldsIn[RGF_COUNT_FIELD + 1]
-        strRGFBackupFile = lstFieldsIn[RGF_COUNT_FIELD + 2]
+            #We only support an RGF and Backup RGF
+            if (nRGFFilesCount != 2):
+                SolidusErrorLog.logCodeMistakeError("Invalid RGF Count", "LocationsManager::setupDirectoryLocation")
+                raise LocationsManagerError("Invalid RGF Count")
+            
+            strRGFFile = lstFieldsIn[RGF_COUNT_FIELD + 1]
+            strRGFBackupFile = lstFieldsIn[RGF_COUNT_FIELD + 2]
 
-        strRGFFile = strRGFFile.replace(self.LOC_FILE_APPLICATION_DIRECTORY_REPLACEABLE_PARAM, self.strApplicationPath[:-1])
-        strRGFBackupFile = strRGFBackupFile.replace(self.LOC_FILE_APPLICATION_DIRECTORY_REPLACEABLE_PARAM, self.strApplicationPath[:-1])
-        
-        
-        self.lstLocations.append(OSXDirectoryLocClass(strDirectory, str32BitLocGuid, str64BitLocGuid, strRGFFile, strRGFBackupFile, bInitForInstallIn))
+            strRGFFile = strRGFFile.replace(self.LOC_FILE_APPLICATION_DIRECTORY_REPLACEABLE_PARAM, self.strApplicationPath[:-1])
+            strRGFBackupFile = strRGFBackupFile.replace(self.LOC_FILE_APPLICATION_DIRECTORY_REPLACEABLE_PARAM, self.strApplicationPath[:-1])
+            
+            self.lstLocations.append(OSXDirectoryLocClass(strDirectory, str32BitLocGuid, str64BitLocGuid, strRGFFile, strRGFBackupFile, bInitForInstallIn))
 
+        except LocationsManagerError:
+            #Already Logged
+            raise
+        except Exception as err:
+            SolidusErrorLog.logError(str(err), "LocationsManager::setupDirectoryLocation")
+            raise LocationsManagerError(str(err))
 
     def install(self):
         try:
             for loc in self.lstLocations:
                 loc.saveForInstall()
 
-        #!TFinish - Add Error Handling
-        except:
+        except LocationsManagerError:
+            SolidusErrorLog.logError("Save Failed", "LocationsManager::install")
             raise
+        except Exception as err:
+            SolidusErrorLog.logError(str(err), "LocationsManager::install")
+            raise LocationsManagerError(str(err))
 
     def evaluateAllLocations(self):
         try:
             for loc in self.lstLocations:
                 loc.evaluate()
-
-        #!TFinish - Add Error Handling
-        except:
+        except LocationsManagerError:
+            SolidusErrorLog.logError("Evaluate Failed", "LocationsManager::evaluateAllLocations")
             raise
-
-#!TFinish - Move these to the right location
-strApplicationPath = os.path.dirname(os.path.realpath(__file__)) + "/"
-SOLIDUS_CONFIG_FILE_NAME = "Solidus.config"
-SOLIDUS_CONFIG_FILE = strApplicationPath + SOLIDUS_CONFIG_FILE_NAME
-                         
-def writeSolidusConfigFile(strEmailAddressIn):
-    try:
-        outFile = open(SOLIDUS_CONFIG_FILE, "w")
-        #!TFinish - Tie this to agent version number properly
-        outFile.write("Solidus Config File Version .1\n")
-        outFile.write(strEmailAddressIn + "\n")
-        outFile.close()
-    except:
-        #!TFinish - Add Error Handling
-        raise
-                         
-def getSolidusRegisteredEmailAddress():
-
-    try:        
-        inFile = open(SOLIDUS_CONFIG_FILE, "r")
-
-        #Ignore the version header at this time
-        strFileVersionHeader = inFile.readline()
-
-        strEmailAddress = inFile.readline().rstrip("\n")
-
-        if (len(strEmailAddress) == 0):
-            #!TFinish - Add Logging?
-            raise Exception()
-            
-
-        return strEmailAddress
-                         
-    #We need to reinstall if the config file does not exist or does not match what we expect
-    except:
-        return None
-
+        except Exception as err:
+            SolidusErrorLog.logError(str(err), "LocationsManager::evaluateAllLocations")
+            raise LocationsManagerError(str(err))
 
 def installSolidus():
 
-    #!TFinish - Add Error Handling
-    strEmailAddress = raw_input("Please Enter Your Valid Email Address: ")
-    strEmailAgain = raw_input("Please Enter Your Email Address Again: ")
-
-    if (strEmailAddress.lower() != strEmailAgain.lower()):
-        print ("Install Failed: The email addresses did not match.")
-        #!TFinish - Add Error Handling and Logging
-        return
-
-    strEmailAddress = strEmailAddress.strip()
-    writeSolidusConfigFile(strEmailAddress)
-    
-    locManager = LocationsManager(True)
-    locManager.install()
-
-
-def test():
-
-    strEmailAddress = getSolidusRegisteredEmailAddress()
-
-    if (strEmailAddress is None):
-        strEmailAddress = installSolidus()
-
-    SolidusXMLLog.writeOriginInfoEvent(strEmailAddress)
-    return
-    
-    locManager = LocationsManager(False)
-    locManager.evaluateAllLocations()
-    SolidusXMLLog.reportAllEvents()
-    return
-
-    print (str(uuid.uuid4()))
-    print (str(uuid.uuid4()))
-    return 
-    
-    osxLocClass = OSXDirectoryLocClass("/Users/hhempste/Documents/python/FirstLoc.rgf")
     try:
-            osxLocClass.readFromFile()
-    except:
-            pass
-    
-    evaluateDirectory(osxLocClass, "/System/Library/Extensions/")
-    osxLocClass.writeToFile()
-    return
-    
-    #osxLocClass.addOSXLocEntry(OSXLocEntry("Test1"))
-    #osxLocClass.addOSXLocEntry(OSXLocEntry("Test2"))
-    #osxLocClass.writeToFile()
-    osxLocClass.readFromFile()
-    #!TRemove - All Below
-    print 
-    print (os.path.getsize("/Users/hhempste/Documents/python/FirstLoc.rgf"))
-    print (getFileMD5("/Users/hhempste/Documents/python/FirstLoc.rgf"))
-    print (base64.b64encode('~(sap8W"h%$<W&^]'))
-    print (base64.b64decode("fihzYXA4VyJoJSQ8VyZeXQ=="))
+        strOriginGuid = str(uuid.uuid4())
 
-    print(buildOriginInfoEvent())
-    return
-    
-    strSplunk1 = "AgentAPI"
-    strSplunk2 = base64.b64decode("fihzYXA4VyJoJSQ8VyZeXQ==")
-    strRootSplunkAddress = "https://SolidusSecurity.com"
-    strSplunkSessionPath = "/services/auth/login"
-    nSplunkPort = 8089
-    SPLUNK_SESSION_KEY_FIELD_NAME = "sessionKey"
-    
-    strSplunkUrl = strRootSplunkAddress + ":" + str(nSplunkPort) + strSplunkSessionPath
-    print (strSplunkUrl)
-    request = urllib2.Request(strSplunkUrl,
-                              data=urllib.urlencode({"username": strSplunk1, "password": strSplunk2}))
+        #!TFinish - Add Error Handling
+        strEmailAddress = raw_input("Please Enter Your Valid Email Address: ")
+        strEmailAgain = raw_input("Please Enter Your Email Address Again: ")
 
-    response = urllib2.urlopen(request)
-    strSessionKey = minidom.parseString(response.read()).getElementsByTagName(SPLUNK_SESSION_KEY_FIELD_NAME)[0].childNodes[0].nodeValue
-    print (strSessionKey)
+        if (strEmailAddress.lower() != strEmailAgain.lower()):
+            sys.exit("INSTALL FAILED: The email addresses did not match. Run Solidus again and enter matching email addresses.")
 
-
-test()
-
+        strEmailAddress = strEmailAddress.strip()
+        SolidusConfigFile.writeSolidusConfigFile(strOriginGuid, strEmailAddress)
         
+        locManager = LocationsManager(True)
+        locManager.install()
+
+        return strOriginGuid, strEmailAddress
+
+    except Exception as err:
+        SolidusErrorLog.logError(str(err), "installSolidus")
+        #Delete the config file so we have to run the install routine again
+        #!TFinish 1.0 - Add more robust error handling if deletion fails
+        SolidusConfigFile.deleteSolidusConfigFile()
+        sys.exit("INSTALL FAILED: Please email the SolidusError.log file to EpicFail@SolidusSecurity.com for troubleshooting help.")
+            
+def runSolidus():
+
+    try:
+        
+        strOriginGuid, strEmailAddress = SolidusConfigFile.getSolidusOriginGuidAndRegisteredEmailAddress()
+
+        if (strEmailAddress is None):
+            strOriginGuid, strEmailAddress = installSolidus()
+
+        SolidusXMLLog.writeOriginInfoEvent(strEmailAddress)
+
+        locManager = LocationsManager(False)
+        locManager.evaluateAllLocations()
+        SolidusXMLLog.reportAllEvents(strOriginGuid)
+
+    except SystemExit as err:
+        print (str(err))
+        raise
+    
+    except LocationsManagerError:
+        SolidusErrorLog.logError("LocationsManager Failure", "runSolidus")  
+        
+    except Exception as err:
+        SolidusErrorLog.logError(str(err), "runSolidus")  
+
+
+runSolidus()
         

@@ -6,7 +6,6 @@ setup(name="solidus",
       url="http://github.com/SolidusSecurity/SolidusOSX",
       author="Joe Kovacic",
       author_email="j.kovacic@SolidusSecurity.com",
-      license="None",
       packages=['solidus'],
       zip_safe= False)
 
