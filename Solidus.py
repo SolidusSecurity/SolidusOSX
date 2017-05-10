@@ -10,8 +10,6 @@ import os
 #!TFinish 1.0 - Add More Robust Function by Function Error Handling
 class OSXLocEntry:
 
-    strEntryName = ""
-
     @classmethod
     def initFromFile(cls, inFileIn):
         clsRet = cls("")
@@ -33,9 +31,6 @@ class OSXLocEntry:
 #All Exceptions Pass Through
 #!TFinish 1.0 - Add More Robust Function by Function Error Handling
 class OSXLocFileOrDirectoryEntry:
-
-    strEntryName = ""
-    nFileOrDirectory = -1
 
     ENTRY_IS_DIR_VALUE = 0
     ENTRY_IS_FILE_VALUE = 1
@@ -75,16 +70,6 @@ class OSXDirectoryLocClassError(Exception):
 
 #!TFinish 1.0 - Add More Robust Function by Function Error Handling
 class OSXDirectoryLocClass:
-
-    strDirectory = ""
-    str32BitLocGuid = ""
-    str64BitLocGuid = ""
-    strRGFFile = ""
-    strRGFBackupFile = ""
-    dictOSXLocEntries = {}
-
-    def __init__(self):
-        pass
             
     def __init__(self, strDirectoryIn, str32BitLocGuidIn, str64BitLocGuidIn, strRGFFileIn, strRGFBackupFileIn, bInitForInstallSave):
         self.strDirectory = strDirectoryIn
@@ -92,7 +77,8 @@ class OSXDirectoryLocClass:
         self.str64BitLocGuid = str64BitLocGuidIn
         self.strRGFFile = strRGFFileIn
         self.strRGFBackupFile = strRGFBackupFileIn
-
+        self.dictOSXLocEntries = {}
+        
         if (not bInitForInstallSave):
             self.readFromFile()
             
@@ -169,12 +155,10 @@ class LocationsManagerError(Exception):
 #!TFinish 1.0 - Add More Robust Function by Function Error Handling
 class LocationsManager():
 
-    lstLocations = []
-
-    strApplicationPath = ""
     LOC_FILE_APPLICATION_DIRECTORY_REPLACEABLE_PARAM = "%ApplicationDirectory%"
 
     def __init__(self, bInitForInstallIn):
+        self.lstLocations = []
         self.readInLocationsFile(bInitForInstallIn)
 
     def readInLocationsFile(self, bInitForInstallIn):
@@ -335,11 +319,12 @@ def runSolidus():
 
         if (strEmailAddress is None):
             strOriginGuid, strEmailAddress = installSolidus()
-
+        else:
+            locManager = LocationsManager(False)
+            locManager.evaluateAllLocations()
+            
         SolidusXMLLog.writeOriginInfoEvent(strEmailAddress)
 
-        locManager = LocationsManager(False)
-        locManager.evaluateAllLocations()
         SolidusXMLLog.reportAllEvents(strOriginGuid)
 
     except SystemExit as err:

@@ -157,7 +157,7 @@ def getPreviouslyReportedLineCountFromReportingTrackerFile():
 
 def writeOutReportingTrackerFile(nPreviouslyReportedLineCountIn):
     try:
-        outFile = open(strReportingTrackerFile, "w")
+        outFile = open(XML_LOG_REPORTING_TRACKER_FILE, "w")
         outFile.write(str(nPreviouslyReportedLineCountIn))
         outFile.close()
 
@@ -266,11 +266,3 @@ def reportAllEvents(strOriginGuidIn):
         #!TFinish 1.0 - Determine whether we want to always log this or only under certain circumstances
         SolidusErrorLog.logError("Reporting Failed: " + str(err), "SolidusXMLLog::reportAllEvents")
                                  
-def test():
-    pass
-    writeOriginInfoEvent("badapple@SolidusSecurity.com")
-    reportAllEvents(str(uuid.uuid4()))
-    #writeDirectoryLocPermitDirectoryEvent("TestGuid", "TestDirectory")
-    
-if __name__ == "__main__":
-    test()
